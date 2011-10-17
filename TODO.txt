@@ -1,0 +1,3 @@
+* Document exported symbols
+* Document examples
+* Create a completely thread-safe version (possibly optional)
