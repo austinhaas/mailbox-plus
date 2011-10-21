@@ -51,5 +51,19 @@
     (is (= 1 (receive-message-if m+ #'oddp 300 50)))
     (is (= 0 (receive-message m+)))))
 
+(test restarts
+  (let ((m+ (make-mailbox-plus :name "test-receive-if-mailbox")))
+    (start-auto-sender m+ :initial-delay 100 :msg-interval 100 :max-messages 2)
+    (is (= 0 (handler-bind ((mailbox-plus-timeout-condition
+                              (lambda (c)
+                                (declare (ignore c))
+                                (invoke-restart 'continue-waiting))))
+               (receive-message m+ 50 50))))
+    (is (= 1 (handler-bind ((mailbox-plus-timeout-condition
+                              (lambda (c)
+                                (declare (ignore c))
+                                (invoke-restart 'continue-waiting-with-new-timeout 1000))))
+               (receive-message m+ 50 50))))))
+
 (defun run-tests ()
   (run-test 'basic-suite))
