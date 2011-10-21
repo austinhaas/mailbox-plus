@@ -7,28 +7,49 @@ wait for a new message before giving up.")
   "The default interval, in milliseconds, that a function will sleep
 between repeated attempts to retrieve the next message.")
 
+(define-condition mailbox-plus-timeout-condition (serious-condition)
+  ((mailbox :initarg mailbox :reader mailbox)
+   (timeout :initarg timeout :reader timeout))
+  (:documentation "Signaled when an receive operation times out."))
+
 (defun receive-message-with-timeout (mailbox timeout &optional (sleep-interval *sleep-interval*))
   "Tries to retrieve a message from mailbox, blocking until timeout if
-necessary. Returns two values: the message retrieved, or nil if the
-operation timed out, and a boolean indicating if the operation was
-successful or not. The value of timeout is specified in
-milliseconds. If timeout is nil, then it is assumed to be infinity. A
-negative timeout is the same as 0."
+necessary. timeout can either be nil, which means to wait forever, or
+an integer specifying the amount of time to wait (in milliseconds). A
+negative timeout value is the same as 0. A
+mailbox-plus-timeout-condition is signaled if a message is not
+received before timeout.
+
+Two restarts are provided, allowing the operation to continue waiting:
+
+continue-waiting: takes 0 arguments and causes the operation to wait
+another timeout milliseconds
+
+continue-waiting-with-new-timeout: takes 1 arguments: a new value for
+timeout"
   ;; I'll change this crude implementation once SBCL has better
   ;; support for timeouts.
   (cond ((null timeout)
-         (values (sb-concurrency:receive-message mailbox) t))
-        ((<= timeout 0)
-         (sb-concurrency:receive-message-no-hang mailbox))
+         (sb-concurrency:receive-message mailbox))
         (t
          (let ((time-remaining timeout))
            (loop
              (multiple-value-bind (message success)
                  (sb-concurrency:receive-message-no-hang mailbox)
                (when success
-                 (return (values message t)))
+                 (return-from receive-message-with-timeout message))
                (when (<= time-remaining 0)
-                 (return (values nil nil)))
+                 (restart-case
+                     (error 'mailbox-plus-timeout-condition :mailbox mailbox :timeout timeout)
+                   (continue-waiting ()
+                     :report (lambda (stream) (format stream "Continue waiting another ~A milliseconds." timeout))
+                     (setf time-remaining timeout))
+                   (continue-waiting-with-new-timeout (timeout)
+                     :report "Continue waiting (with new timeout)."
+                     :interactive (lambda ()
+                                    (format t "~&How long to wait? (in milliseconds): ")
+                                    (list (eval (read))))
+                     (setf time-remaining timeout))))
                (sleep (/ (min sleep-interval time-remaining) 1000))
                (if (> time-remaining sleep-interval)
                    (decf time-remaining sleep-interval)
@@ -49,15 +70,14 @@ negative timeout is the same as 0."
   (sb-concurrency:send-message (mailbox m+) message))
 
 (defun receive-message (m+ &optional (timeout *default-timeout*) (sleep-interval *sleep-interval*))
-  "Removes the oldest message from mailbox and returns it as the
-primary value. A secondary value indicates if a message could be
+  "Removes the oldest message from mailbox and returns it. A
+mailbox-plus-timeout-condition is signaled if a message could not be
 received. If timeout is nil, wait indefinitely for a new message. If
 timeout <= 0, check for a new message, but give up immediately if one
 wasn't received. If timeout > 0, then check for a new message every
-sleep-interval milliseconds, but give up after timeout
-milliseconds."
+sleep-interval milliseconds, but give up after timeout milliseconds."
   (if (buffer m+)
-      (values (pop (buffer m+)) t)
+      (pop (buffer m+))
       (receive-message-with-timeout (mailbox m+) timeout sleep-interval)))
 
 (defun receive-message-if (m+ predicate &optional (timeout *default-timeout*) (sleep-interval *sleep-interval*))
@@ -73,17 +93,12 @@ found will remain in the mailbox in the order they arrived."
   (let ((mailbox (mailbox m+))
         (non-matching-messages nil)
         (time-remaining timeout))
-    (flet ((save-messages ()
-             (when non-matching-messages
-               (setf (buffer m+) (nconc (nreverse non-matching-messages) (buffer m+))))))
-      (loop
-        (multiple-value-bind (msg success) (receive-message-with-timeout mailbox time-remaining sleep-interval)
-          (cond ((not success)
-                 (save-messages)
-                 (return-from receive-message-if (values nil nil)))
-                ((funcall predicate msg)
-                 (save-messages)
-                 (return-from receive-message-if (values msg t)))
-                (t
-                 (decf time-remaining sleep-interval)
-                 (push msg non-matching-messages))))))))
+    (loop
+      (let ((msg (receive-message-with-timeout mailbox time-remaining sleep-interval)))
+        (cond ((funcall predicate msg)
+               (when non-matching-messages
+                 (setf (buffer m+) (nconc (nreverse non-matching-messages) (buffer m+))))
+               (return-from receive-message-if msg))
+              (t
+               (decf time-remaining sleep-interval)
+               (push msg non-matching-messages)))))))
