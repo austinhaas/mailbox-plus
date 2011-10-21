@@ -4,6 +4,8 @@
    #:*default-timeout*
    #:*sleep-interval*
    #:mailbox-plus-timeout-condition
+   #:continue-waiting
+   #:continue-waiting-with-new-timeout
    #:make-mailbox-plus
    #:send-message
    #:receive-message
