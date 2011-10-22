@@ -1,8 +1,9 @@
 (in-package #:mailbox-plus)
 
-(defparameter *default-timeout* 5000
+(defparameter *default-timeout* nil
   "The default amount of time, in milliseconds, that an operation will
-wait for a new message before giving up.")
+wait for a new message before giving up, or nil, if the operation
+should wait forever.")
 (defparameter *sleep-interval* 200
   "The default interval, in milliseconds, that a function will sleep
 between repeated attempts to retrieve the next message.")
