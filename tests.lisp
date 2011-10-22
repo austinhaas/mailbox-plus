@@ -39,16 +39,16 @@
 (test receive-with-timeout
   (let ((m+ (make-mailbox-plus :name "test-receive-with-timeout-mailbox")))
     (start-auto-sender m+ :initial-delay 100 :msg-interval 100 :max-messages 3)
-    (is (= 0 (receive-message m+ 200 50)))
-    (is (= 1 (receive-message m+ 200 50)))
-    (signals mailbox-plus-timeout-condition (receive-message m+ 10 50))
+    (signals mailbox-plus-timeout-condition (receive-message m+ 10))
+    (is (= 0 (receive-message m+ 100)))
+    (is (= 1 (receive-message m+ 100)))
     (is (= 2 (receive-message m+)))
     (signals mailbox-plus-timeout-condition (receive-message m+))))
 
 (test receive-if
   (let ((m+ (make-mailbox-plus :name "test-receive-if-mailbox")))
     (start-auto-sender m+ :initial-delay 100 :msg-interval 100 :max-messages 2)
-    (is (= 1 (receive-message-if m+ #'oddp 300 50)))
+    (is (= 1 (receive-message-if m+ #'oddp 250)))
     (is (= 0 (receive-message m+)))))
 
 (test restarts
@@ -58,12 +58,12 @@
                               (lambda (c)
                                 (declare (ignore c))
                                 (invoke-restart 'continue-waiting))))
-               (receive-message m+ 50 50))))
+               (receive-message m+ 50))))
     (is (= 1 (handler-bind ((mailbox-plus-timeout-condition
                               (lambda (c)
                                 (declare (ignore c))
                                 (invoke-restart 'continue-waiting-with-new-timeout 1000))))
-               (receive-message m+ 50 50))))))
+               (receive-message m+ 50))))))
 
 (defun run-tests ()
   (run-test 'basic-suite))
