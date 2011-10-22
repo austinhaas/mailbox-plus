@@ -34,16 +34,16 @@
     (is (= 1 (receive-message m+)))
     (is (= 2 (receive-message m+)))
     (is (= 3 (receive-message m+)))
-    (signals mailbox-plus-timeout-condition (receive-message m+))))
+    (signals mailbox-plus-timeout-condition (receive-message m+ 100))))
 
 (test receive-with-timeout
   (let ((m+ (make-mailbox-plus :name "test-receive-with-timeout-mailbox")))
     (start-auto-sender m+ :initial-delay 100 :msg-interval 100 :max-messages 3)
     (signals mailbox-plus-timeout-condition (receive-message m+ 10))
-    (is (= 0 (receive-message m+ 100)))
+    (is (= 0 (receive-message m+)))
     (is (= 1 (receive-message m+ 100)))
-    (is (= 2 (receive-message m+)))
-    (signals mailbox-plus-timeout-condition (receive-message m+))))
+    (is (= 2 (receive-message m+ 100)))
+    (signals mailbox-plus-timeout-condition (receive-message m+ 100))))
 
 (test receive-if
   (let ((m+ (make-mailbox-plus :name "test-receive-if-mailbox")))
