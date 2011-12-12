@@ -2,21 +2,19 @@
 Description
 
 This package wraps SBCL's concurrent mailbox implementation [1] and
-extends it with a couple new functions: a version of receive-message
-that can timeout while waiting for a new message, and a version of
-receive-message that can selectively receive a message based on a
-predicate, while keeping any non-matching messages intact for later
-receive* calls.
+extends it with a version of receive-message (receive-message-if) that
+can selectively receive a message based on a predicate, while keeping
+any non-matching messages intact for later receive* calls.
 
 One very important caveat is that, while any thread can send messages
 to the mailbox, only one thread can safely use the receive functions,
-since we are storing messages skipped over by receive-if in a buffer
-that is not thread-safe.
+since we are storing messages skipped over by receive-message-if in a
+buffer that is not thread-safe.
 
 The motivation for this code was to create an analog to Erlang's
 receiver function, which can selectively match incoming messages
-against a pattern, and transparently maintain the original order of
-the incoming messages (including those that didn't match) after the
+against a pattern while transparently maintaining the original order
+of the incoming messages (including those that didn't match) after the
 receive function exits. One use-case is to send an asynchronous
 request to another process and then block on an incoming message
 stream until the reply is received. Any other incoming messages are
@@ -46,11 +44,6 @@ making that optional, though, either via a special variable or
 alternative functions (e.g., safe-receive). It might be nice to
 provide that interface now, even if the current implementation is
 inefficient.
-
-The timeout and sleep durations are very coarse right now. I'm hoping
-that planned improvements to SBCL's concurrency (i.e., Nikodemus'
-work) will make this a lot better and we can drop the *sleep-interval*
-entirely.
 
 ----------------------------------------------------------------------
 
